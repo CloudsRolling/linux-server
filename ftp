@@ -1,0 +1,113 @@
+
+一、配置YUM仓库服务
+--------------YUM服务器------------------client------------------
+192.168.1.1 192.168.1.10
+[root@localhost ~]# vim /etc/sysconfig/network-scripts/ifcfg-eth0
+[root@localhost ~# service network restart
+[root@localhost ~]# mount /dev/cdrom /mnt/
+[root@localhost ~]# vim /etc/yum.repos.d/rhel-source.repo
+修改：
+baseurl=file:///mnt/
+enabled=1
+[root@localhost ~]# yum -y install createrepo
+[root@localhost ~]# mkdir /var/ftp/other
+[root@localhost ~]# createrepo -g /mnt/repodata/repomd.xml /var/ftp/other/
+[root@localhost ~]# rpm -ivh /mnt/Packages/vsftpd-2.2.2-11.el6_4.1.x86_64.rpm
+[root@localhost ~]# service vsftpd restart
+[root@localhost ~]# mkdir /var/ftp/rhel6
+[root@localhost ~]# cp -rf /mnt/* /var/ftp/rhel6
+或者
+[root@localhost ~]# mount /dev/cdrom /var/ftp/rhel6
+验证：
+[root@localhost ~]# rpm -ivh /mnt/Packages/ftp-0.17-54.el6.x86_64.rpm
+[root@localhost ~]# ftp 192.168.1.1
+客户端验证：
+[root@localhost ~]# vim /etc/sysconfig/network-scripts/ifcfg-eth0
+[root@localhost ~]# service network restart
+[root@localhost ~]# vim /etc/yum.repos.d/rhel6.repo
+添加：
+[base]
+name=base
+baseurl=ftp://192.168.1.1/rhel6
+enabled=1
+gpgcheck=1
+gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-redhat-release
+[other]
+name=other
+baseurl=ftp://192.168.1.1/other
+enabled=1
+gpgcheck=0
+
+验证安装软件
+[root@localhost ~]# yum -y install createrepo
+成功！！！！！！！
+
+[root@localhost ~]# yum list //查询所有已经安装和可以安装的程序包
+[root@localhost ~]# yum info httpd //查询httpd的信息
+[root@localhost ~]# yum search all httpd //查询httpd相关软件包的信息
+[root@localhost ~]# yum clren all //清楚缓存
+[root@localhost ~]# yum grouplist
+[root@localhost ~]# yum groupinfo
+[root@localhost ~]# yum groupinfo Desktop
+[root@localhost ~]# yum -y install bind* //安装bind*相关软件包
+[root@localhost ~]# yum groupinsall "组名"
+[root@localhost ~]# yum -y remove bind* //删除bind*相关软件包
+[root@localhost ~]# yum -y groupremove "组名"
+[root@localhost ~]# yum deplist mysql-server
+
+例如：
+[root@localhost ~]# yum groupinstall "X Window System"
+[root@localhost ~]# yum groupinstall "GNOME Desktop Environment"
+[root@localhost ~]# yum groupinstall "KDE (K Desktop Environment)"
+
+**************************************************************************************8
+
+------------------------FTP+Selinux--------------------
+# mount /dev/cdrom /media/cdrom/
+# yum install vsftpd -y
+# vim /etc/passwd
+ftp家目录/media/cdrom/
+# service vsftpd restart
+
+客户机测试 用户名ftp密码无 目录错误
+
+解决selinux问题
+# ll /var/ftp/ -dZ
+# ll /media/cdrom/ -dZ //比较两个目录的context的值不相同
+# yum install setroub* //安装selinux 解决监控文件
+# /etc/init.d/auditd restart //启动服务
+# tailf /var/log/messages //查看日志
+客户机测试 再次登录ftp
+sealert -l 1542c587-46c2-41f2-a0a7-ce5adf34297d
+setsebool -P allow_ftpd_full_access 1
+客户机测试 成功登录ftp
+# vim /etc/yum.repos.d/dvd.repo
+[DVD]
+name=RHEL6.5
+baseurl=ftp://192.168.56.200
+enabled=1
+gpgcheck=0
+# yum install tftp-server
+# vim /etc/xinetd.d/tftp
+service tftp
+{
+socket_type = dgram
+protocol = udp
+wait = yes
+user = root
+server = /usr/sbin/in.tftpd
+server_args = -s /var/lib/tftpboot
+disable = no
+per_source = 11
+cps = 100 2
+flags = IPv4
+}
+# /etc/init.d/xinetd restart
+客户机测试：
+#touch /var/lib/tftpboot/aa
+# tftp 192.168.56.200
+tftp> get aa
+# cd /media/cdrom/images/pxeboot/
+# cp vmlinuz initrd.img /var/lib/tftpboot/ //拷贝内核及ram文件
+# yum install syslinux //拷贝pxe引导文件
+# cp /usr/share/syslinux/pxelinux.0 /var/lib/tftpboot/
