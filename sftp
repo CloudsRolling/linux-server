@@ -1,0 +1,166 @@
+---------------增加sftp-----------------
+查看openssh的版本
+# ssh -V
+使用ssh -V 命令来查看openssh的版本，版本必须大于4.8p1，低于的这个版本需要升级。
+创建sftp组
+# groupadd sftp
+创建一个sftp用户，用户名为mysftp，密码为mysftp
+修改用户密码和修改Linux用户密码是一样的。
+/bin/false是最严格的禁止login选项，一切服务都不能用，而/sbin/nologin只是不允许系统login，可以使用其他ftp等服务
+如果想要用false在禁止login的同时允许ftp，则必须在/etc/shells里增加一行/bin/false。
+# useradd -g sftp -s /bin/false mysftp //用户名
+# passwd mysftp //密码
+sftp组的用户的home目录统一指定到/data/sftp下，按用户名区分，这里先新建一个mysftp目录，然后指定mysftp的home为/data/sftp/mysftp
+# mkdir -p /data/sftp/mysftp
+# usermod -d /data/sftp/mysftp mysftp
+配置sshd_config
+文本编辑器打开 /etc/ssh/sshd_config
+# vim /etc/ssh/sshd_config
+找到如下这行，用#符号注释掉，大致在文件末尾处。
+# Subsystem sftp /usr/libexec/openssh/sftp-server
+增加
+Subsystem sftp internal-sftp
+Match Group sftp
+ChrootDirectory /data/sftp/%u
+ForceCommand internal-sftp
+AllowTcpForwarding no
+X11Forwarding no
+设定Chroot目录权限
+# chown root:sftp /data/sftp/mysftp
+# chmod 755 /data/sftp/mysftp
+建立SFTP用户登入后可写入的目录
+照上面设置后，在重启sshd服务后，用户mysftp已经可以登录。但使用chroot指定根目录后，根应该是无法写入的，所以要新建一个目录供
+mysftp上传文件。这个目录所有者为mysftp，所有组为sftp，所有者有写入权限，而所有组无写入权限。命令如下：
+# mkdir /data/sftp/mysftp/upload
+# chown mysftp:sftp /data/sftp/mysftp/upload
+# chmod 755 /data/sftp/mysftp/upload
+# setenforce 0
+# service sshd restart
+# sftp mysftp@127.0.0.1
+sftp>cd upload
+sftp>put /etc/ntp.conf
+将禁止使用vsftp的用户在/data/sftp/下建立同名用户，并且将用户加入sftp组后，将被限制，不能改变路径。
+# vim /etc/group //han用户加入sftp组
+# mkdir /data/sftp/han/upload
+# chown mysftp:sftp /data/sftp/han/upload
+# chmod 755 /data/sftp/han/upload
+禁止本地用户使用sftp登录（注意同时也禁止ssh登录）
+# vim /etc/ssh/sshd_config
+增加：（注意不可在Match Group sftp 下方任何位置）
+DenyUsers meng
+------------------------------------------
+yum install xinetd
+# vim /etc/hosts.deny
+sshd:192.168.56.201
+# vim /etc/hosts.allow
+sshd:192.168.56.201
+/etc/init.d/xinetd restart
+什么是xinetd
+extended internet daemon
+xinetd是新一代的网络守护进程服务程序，又叫超级Internet服务器,常用来管理多种轻量级Internet服务。
+xinetd的缺点
+当前最大的缺点是对RPC支持的不稳定，但是可以启动protmap，使它与xinetd共存来解决这个问题。
+xinetd的调优和解释：
+现在就安装并重启完成了xinetd服务。
+或者使用如下命令重启：
+# /etc/init.d/xinetd restart
+1) /etc/xinetd.conf
+xinetd 的配置文件是/etc/xinetd.conf，但是它只包括几个默认值及/etc/xinetd.d目录中的配置文件。如果要启用或禁用某项 xinetd服务，编辑
+位于/etc/xinetd.d目录中的配置文件。例如，disable属性被设为yes，表示该项服务已禁用；disable属性被设为no，表示该项服务已启用。/etc
+/xinetd.conf有许多选项，下面是RHEL 4.0的/etc/xinetd.conf
+# Simple configuration file for xinetd
+# Some defaults, and include /etc/xinetd.d/
+defaults
+{ instances =
+60
+log_type = SYSLOG authpriv
+log_on_success = HOST PID
+log_on_failure = HOST
+cps = 25 30
+} includedir /
+etc/xinetd.d
+— instances = 60：表示最大连接进程数为60个。
+— log_type = SYSLOG authpriv：表示使用syslog进行服务登记。
+— log_on_success= HOST PID：表示设置成功后记录客户机的IP地址的进程ID。
+— log_on_failure = HOST：表示设置失败后记录客户机的IP地址。
+— cps = 25 30：表示每秒25个入站连接，如果超过限制，则等待30秒。主要用于对付拒绝服务攻击。
+— includedir /etc/xinetd.d：表示告诉xinetd要包含的文件或目录是/etc/xinetd.d。
+2) /etc/xinetd.d/*
+下面以/etc/xinetd.d/中的一个文件（rsync）为例。
+service rsync
+{
+disable = yes
+socket_type = stream
+wait = no
+user = root
+server = /usr/bin/rsync
+log_on_failure += USERID
+}
+下面说明每一行选项的含义：
+— disable = yes：表示禁用这个服务。
+— socket_type = stream：表示服务的数据包类型为stream。
+— wait = no：表示不需等待，即服务将以多线程的方式运行。
+— user = root：表示执行此服务进程的用户是root。
+— server = /usr/bin/rsync：启动脚本的位置。
+— log_on_failure += USERID：表示设置失败时，UID添加到系统登记表。
+6、 配置xinetd
+1) 格式
+/etc/xinetd.conf中的每一项具有下列形式：
+service service-name
+{
+……
+}
+其中service是必需的关键字，且属性表必须用大括号括起来。每一项都定义了由service-name定义的服务。
+service-name是任意的，但通常是标准网络服务名，也可增加其他非标准的服务，只要它们能通过网络请求激活，包括localhost自身发出的
+网络请求。有很多可以使用的属性，稍后将描述必需的属性和属性的使用规则。
+操作符可以是=、+=或-=。所有属性可以使用=，其作用是分配一个或多个值，某些属性可以使用+=或-=，其作用分别是将其值增加到某个
+现存的值表中，或将其值从现存值表中删除。
+2) 配置文件
+相关的配置文件如下：
+/etc/xinetd.conf
+/etc/xinetd.d/* //该目录下的所有文件
+/etc/hosts.allow
+/etc/hosts.deny
+3) disabled与enabled
+前者的参数是禁用的服务列表，后者的参数是启用的服务列表。他们的共同点是格式相同（属性名、服务名列表与服务中间用空格分开，
+例如disabled = in.tftpd in.rexecd），此外，它们都是作用于全局的。如果在disabled列表中被指定，那么无论包含在列表中的服务是否有配
+置文件和如何设置，都将被禁用；如果enabled列表被指定，那么只有列表中的服务才可启动，如果enabled没有被指定，那么disabled指定的
+服务之外的所有服务都可以启动。
+4) 注意问题
+① 在重新配置的时候，下列的属性不能被改变：socket_type、wait、protocol、type；
+② 如果only_from和no_access属性没有被指定（无论在服务项中直接指定还是通过默认项指定），那么对该服务的访问IP将没有限制；
+③ 地址校验是针对IP地址而不是针对域名地址。
+6 xinetd防止拒绝服务攻击（Denial of Services）的原因
+xinetd能有效地防止拒绝服务攻击（Denial of Services）的原因如下。
+1) 限制同时运行的进程数
+通过设置instances选项设定同时运行的并发进程数：
+instances＝20
+当服务器被请求连接的进程数达到20个时，xinetd将停止接受多出部分的连接请求。直到请求连接数低于设定值为止。
+2) 限制一个IP地址的最大连接数
+通过限制一个主机的最大连接数，从而防止某个主机独占某个服务。
+per_source＝5
+这里每个IP地址的连接数是5个。
+3) 限制日志文件大小，防止磁盘空间被填满
+许多攻击者知道大多数服务需要写入日志。入侵者可以构造大量的错误信息并发送出来，服务器记录这些错误，可能就造成日志文件非常
+庞大，甚至会塞满硬盘。同时会让管理员面对大量的日志，而不能发现入侵者真正的入侵途径。因此，限制日志文件大小是防范拒绝服务
+攻击的一个方法。
+log_type FILE.1 /var/log/myservice.log 8388608 15728640
+这里设置的日志文件FILE.1临界值为8MB，到达此值时，syslog文件会出现告警，到达15MB，系统会停止所有使用这个日志系统的服务。
+4) 限制负载
+xinetd还可以使用限制负载的方法防范拒绝服务攻击。用一个浮点数作为负载系数，当负载达到这个数目的时候，该服务将暂停处理后续
+的连接。
+max_load = 2.8
+上面的设定表示当一项系统负载达到2.8时，所有服务将暂时中止，直到系统负载下降到设定值以下。
+说明 要使用这个选项，编译时应加入“–with-loadavg”，xinetd将处理max-load配置选项，从而在系统负载过重时关闭某些服务进程，来实现
+防范某些拒绝服务攻击。
+5) 限制所有服务器数目（连接速率）
+xinetd可以使用cps选项设定连接速率，下面的例子：
+cps = 25 60
+上面的设定表示服务器最多启动25个连接，如果达到这个数目将停止启动新服务60秒。在此期间不接受任何请求。
+6) 限制对硬件资源的利用
+通过rlimit_as和rlimit_cpu两个选项可以有效地限制一种服务对内存、中央处理器的资源占用：
+rlimit_as = 8M
+rlimit_cpu=20
+上面的设定表示对服务器硬件资源占用的限制，最多可用内存为8MB，CPU每秒处理20个进程。
+xinetd的一个重要功能是它能够控制从属服务可以利用的资源量，通过它的以上设置可以达到这个目的，有助于防止某个xinetd服务占用大
+量资源，从而导致“拒绝服务”情况的出现。
