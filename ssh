@@ -1,0 +1,59 @@
+
+构建SSH远程管理
+---------SSH服务器-------------Client---------
+192.168.1.1 192.168.1.100
+一、密码验证
+root@localhost ~]# vi /etc/ssh/sshd_config 修改:
+Port 22
+Protocol 2
+ListenAddress 192.168.1.1
+UseDNS no
+PermitRootLogin no
+PermitEmptyPasswords no
+LoginGraceTime 2m
+MaxAuthTries 6
+AllowUsers hehe xixi@192.168.1.100 客户端验证:
+[root@localhost ~]# ssh 192.168.1.1
+[root@localhost ~]# ssh hehe@192.168.1.1
+[root@localhost ~]# ssh haha@192.168.1.1
+[root@localhost ~]# ssh xixi@192.168.1.1
+二、秘钥对验证
+例如:
+ssh-keygen -b 4096 -t dsa
+客户端:
+[root@localhost ~]#ssh-keygen
+[root@localhost ~]#ssh-copy-id -i /home/hehe/.ssh/id_rsa.pub root@192.168.1.1
+注意:ssh-copy-id:把密钥追加到远程主机的 .ssh/authorized_key 上
+[root@localhost ~]#ssh root@192.168.1.1
+或者
+[hehe@localhost .ssh]$ ssh-keygen
+[hehe@localhost .ssh]$ scp id_rsa.pub root@192.168.1.1:/root/
+注意:在上传公钥时,不要关闭密码验证,否则将无法上传。
+服务器端:
+[root@localhost ~]# vim /etc/ssh/sshd_config
+修改:
+PubkeyAuthentication yes
+AuthorizedKeysFile .ssh/authorized_keys
+[root@localhost ~]#cp /root/id_rsa.pub /root/.ssh/authorized_keys
+增加其他用户
+[root@localhost ~]#cat id_rsa.pub >> .ssh/authorized_keys
+[root@localhost ~]# service sshd restart
+客户端验证:
+[hehe@localhost .ssh]$ ssh root@192.168.1.1 结论:不使用密码。而是使用秘钥对验证登录。
+思考：如果客户端lisi用户，把公钥拷贝到了服务端han用户下。将会怎么样？
+（lisi用户ssh han@192.168.56.200时无需密码）
+结论希望哪个用户免密码就拷贝到哪个用户。
+-----------------------------------
+远程执行命令：ssh root@192.168.56.200 date
+-----------------------------------
+讲解scp命令
+1、本地--->>>---服务器(类似上传)
+文件:
+[root@localhost ~]# scp 222.txt root@192.168.1.1:/root
+目录:
+[root@localhost ~]# scp -r /root/hehe root@192.168.1.1:/root
+2、服务器--->>>---本地(类似下载)
+文件:
+[root@localhost ~]# scp root@192.168.1.1:/root/222.txt ./
+目录:
+[root@localhost ~]# scp -r root@192.168.1.1:/root/hehe ./
