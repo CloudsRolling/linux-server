@@ -1,0 +1,60 @@
+--------------------DHCP 配置-------------------
+# yum install dhcp -y
+# vim /etc/dhcp/dhcpd.conf
+# cp /usr/share/doc/dhcp*/dhcpd.conf.sample /etc/dhcp/dhcpd.conf
+# vim /etc/dhcp/dhcpd.conf
+# dhcpd.conf
+default-lease-time 600;
+max-lease-time 7200;
+# A slightly different configuration for an internal subnet.
+subnet 192.168.56.0 netmask 255.255.255.0 {
+range 192.168.56.10 192.168.56.20;
+option subnet-mask 255.255.255.0;
+option routers 192.168.56.200;
+next-server 192.168.56.200;
+filename "pxelinux.0";
+}
+# dhcpd //测试DHCP
+# /etc/init.d/dhcpd restart
+--------------------编译引导文件和启动菜单----
+# mkdir /var/lib/tftpboot/pxelinux.cfg
+# cp /media/cdrom/isolinux/isolinux.cfg /var/lib/tftpboot/pxelinux.cfg/default
+# vim /var/lib/tftpboot/pxelinux.cfg/default
+default auto //默认安装状态
+prompt 1 //由用户自己控制
+label auto //图形界面
+kernel vmlinuz
+append initrd=initrd.img devfs=nomount ramdisk_size=8192
+label linux text //文本界面
+kernel vmlinuz
+append text initrd=initrd.img devfs=nomount ramdisk_size=8192
+label linux rescue //救援模式
+kernel vmlinuz
+append rescue initrd=initrd.img devfs=nomount ramdisk_size=8192
+# /etc/init.d/dhcpd restart
+# /etc/init.d/vsftpd restart
+# /etc/init.d/xinetd restart
+-------------------客户端测试
+客户端从网卡引导
+********************无人值守kickstart
+# yum install system-config-kickstart -y //安装图形应答文件。
+# vim anaconda-ks.cfg //安装本机时所创建的应答文件
+# vim /etc/passwd
+修改ftp用户家目录为：/var/ftp
+# mkdir /var/ftp/rhel6
+# cp -rf /media/cdrom/* /var/ftp/rhel6/
+# system-config-kickstart
+# cp ks.cfg /var/ftp/rhel6/
+# vim /var/lib/tftpboot/pxelinux.cfg/default
+default auto
+prompt 0 //不等待用户应答
+label auto
+kernel vmlinuz
+append ks=ftp://192.168.56.200/rhel6/ks.cfg initrd=initrd.img devfs=nomount ramdisk_size=8192
+# /etc/init.d/dhcpd restart
+# /etc/init.d/vsftpd restart
+# /etc/init.d/xinetd restart
+客户端安装：装机卡在 unsupported hardware detected 页面
+在ks.cfg 增加一行：unsupported_hardware
+-------------------客户端测试
+客户端从网卡引导
