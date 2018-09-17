@@ -1,0 +1,40 @@
+
+[root@localhost ~]# fdisk -l /dev/sdb /dev/sdc | grep "LVM"
+/dev/sdb1 1 9660 77593918+ 8e Linux LVM
+/dev/sdc1 1 9660 77593918+ 8e Linux LVM
+创建物理卷：
+[root@localhost ~]# pvcreate /dev/sdb1
+Physical volume "/dev/sdb1" successfully created
+[root@localhost ~]# pvcreate /dev/sdc1
+Physical volume "/dev/sdc1" successfully created
+创建卷组：
+[root@localhost ~]# vgcreate mail_store /dev/sdb1 /dev/sdc1
+Volume group "mail_store" successfully created
+创建逻辑卷：
+[root@localhost ~]# lvcreate -L 60G -n mail mail_store
+Logical volume "mail" created
+[root@localhost ~]# mkfs -t ext4 /dev/mail_store/mail
+……
+逻辑卷扩容：
+[root@localhost ~]# lvextend -L +10G /dev/mail_store/mail
+[root@localhost ~]# resize2fs /dev/mail_store/mail （物理分区或者挂在点都可）
+如果本身VG不够大，也可以扩大VG
+[root@localhost ~]# vgextend mail_store（扩大谁） /dev/vda5（从哪扩大）
+逻辑卷减小：
+[root@localhost ~]# umount /media
+[root@localhost ~]# resize2fs -p -d 2 /dev/mail_store/mail 1G （缩小1G）
+[root@localhost ~]# e2fsck -f /dev/dev/mail_store/mail （缩小前检查磁盘）
+[root@localhost ~]# lvreduce -L 1G /dev/mail_store/mail
+[root@localhost ~]# lvchange -an /dev/mail_store/mail （下线）
+[root@localhost ~]# lvchange -ay /dev/mail_store/mail （生产模式）
+[root@localhost ~]# mount -a （重新挂载）
+逻辑卷快照：
+[root@localhost ~]# umount /media/
+[root@localhost ~]# lvcreate -s -L 100M -n homebak /dev/vgsrv/home（对谁备份）
+--------lvs 会多出来一个homebak
+[root@localhost ~]# mkdir /mnt/homebak
+[root@localhost ~]# mount -o ro /dev/vgsrv/home /mnt/homebak
+--------修改home目录
+[root@localhost ~]# tar zcvf /backup/homebak.tar.gz /mnt/homebak
+[root@localhost ~]# umount /mnt/homebak
+[root@localhost ~]# lvremove /dev/vgsrv/home
