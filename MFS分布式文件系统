@@ -1,0 +1,167 @@
+
+++++++++++++++构建MFS分布式文件系统++++++++++++++
+PB级别：
+企业存储空间达到PB级别，即100万GB空间。（1PB=1000TB，1TB=1000GB，1GB=1000MB）
+MFS原理：
+MFS是一个具有容错额网络分布式文件系统，他把数据分散存放在多个物理服务器上，而呈现给用户则是一个统一的资源。
+MFS组成：
+1）元数据服务器：
+2）元数据日志服务器：
+3）数据存储服务器：
+4）客户端：
+MFS拓扑：
+-------Client---------Master---------MataLogger---------Chunk1---------Chunk1---------Chunk1---------
+192.168.1.1 192.168.1.10 192.168.1.100 192.168.1.201 192.168.1.202 192.168.1.203
+配置步骤：
+一、Master
+[root@localhost ~]# yum -y install zlib-devel
+[root@localhost ~]# useradd mfs -s /sbin/nologin -u 98
+[root@localhost ~]# tar -zxvf mfs-1.6.27-5.tar.gz -C /usr/src/
+[root@localhost ~]# cd /usr/src/mfs-1.6.27/
+[root@localhost mfs-1.6.27]# ./configure --prefix=/usr/local/mfs --with-default-user=mfs --with-default-group=mfs --
+disable-mfschunkserver --disable-mfsmount
+[root@localhost mfs-1.6.27]# make && make install
+[root@localhost ~]# cd /usr/local/mfs/etc/mfs/
+[root@localhost mfs]# cp mfsmaster.cfg.dist mfsmaster.cfg
+[root@localhost mfs]# cp mfsexports.cfg.dist mfsexports.cfg
+[root@localhost mfs]# cp mfstopology.cfg.dist mfstopology.cfg
+[root@localhost mfs]# cd /usr/local/mfs/var/mfs/
+[root@localhost mfs]# cp metadata.mfs.empty metadata.mfs
+[root@localhost ~]# vim /usr/local/mfs/etc/mfs/mfsmaster.cfg
+不做任何改动
+[root@localhost ~]# vim /usr/local/mfs/etc/mfs/mfsexports.cfg
+不做任何改动
+[root@localhost ~]# /usr/local/mfs/sbin/mfsmaster restart //启动mfs
+[root@localhost ~]# ps -elf | grep mfs
+[root@localhost ~]# netstat -anpt | grep mfs
+[root@localhost ~]# /usr/local/mfs/sbin/mfsmaster stop //停止mfs
+二、MataLogger
+[root@localhost ~]# yum -y install zlib-devel
+[root@localhost ~]# useradd mfs -s /sbin/nologin -u 98
+[root@localhost ~]# tar -zxvf mfs-1.6.27-5.tar.gz -C /usr/src/
+[root@localhost ~]# cd /usr/src/mfs-1.6.27/
+[root@localhost mfs-1.6.27]# ./configure --prefix=/usr/local/mfs --with-default-user=mfs --with-default-group=mfs --
+disable-mfschunkserver --disable-mfsmount
+[root@localhost mfs-1.6.27]# make && make install
+[root@localhost ~]# cd /usr/local/mfs/etc/mfs/
+[root@localhost ~]# cp mfsmetalogger.cfg.dist mfsmetalogger.cfg
+[root@localhost ~]# vim /usr/local/mfs/etc/mfs/mfsmetalogger.cfg
+修改：
+MASTER_HOST = 192.168.1.10
+[root@localhost ~]# /usr/local/mfs/sbin/mfsmetalogger restart //启动
+[root@localhost ~]# ps -elf | grep mfs
+[root@localhost ~]# netstat -anpt | grep mfs
+[root@localhost ~]# /usr/local/mfs/sbin/mfsmetalogger stop //停止
+三、Chunk
+[root@localhost ~]# yum -y install zlib-devel
+[root@localhost ~]# useradd mfs -s /sbin/nologin -u 98
+[root@localhost ~]# tar -zxvf mfs-1.6.27-5.tar.gz -C /usr/src/
+[root@localhost ~]# cd /usr/src/mfs-1.6.27/
+[root@localhost mfs-1.6.27]# ./configure --prefix=/usr/local/mfs --with-default-user=mfs --with-default-group=mfs --
+disable-mfsmaster --disable-mfsmount
+[root@localhost mfs-1.6.27]# make && make install
+[root@localhost ~]# cd /usr/local/mfs/etc/mfs/
+[root@localhost mfs]# cp mfschunkserver.cfg.dist mfschunkserver.cfg
+[root@localhost mfs]# cp mfshdd.cfg.dist mfshdd.cfg
+[root@localhost ~]# vim /usr/local/mfs/etc/mfs/mfschunkserver.cfg
+添加：
+MASTER_HOST = 192.168.1.10
+[root@localhost ~]# vim /usr/local/mfs/etc/mfs/mfshdd.cfg
+添加：
+/data
+[root@localhost ~]# mkdir /data
+[root@localhost ~]# chown -R mfs:mfs /data/
+[root@localhost ~]# /usr/local/mfs/sbin/mfschunkserver restart
+[root@localhost ~]# ps -elf | grep mfs
+[root@localhost ~]# netstat -anpt | grep mfs
+四、Client
+1、安装fuse
+[root@localhost ~]# yum -y install zlib-devel
+[root@localhost ~]# tar -zxvf fuse-2.9.2.tar.gz -C /usr/src/
+[root@localhost ~]# cd /usr/src/fuse-2.9.2/
+[root@localhost fuse-2.9.2]# ./configure && make && make install
+[root@localhost fuse-2.9.2]# vim /etc/profile
+添加：
+export PKG_CONFIG_PATH=/usr/local/lib/pkgconfig:$PKG_CONFIG_PATH
+[root@localhost fuse-2.9.2]# . /etc/profile //立即生效
+[root@localhost fuse-2.9.2]# source /etc/profile //重启生效
+2、安装
+[root@localhost ~]# useradd mfs -s /sbin/nologin -u 98
+[root@localhost ~]# tar -zxvf mfs-1.6.27-5.tar.gz -C /usr/src/
+[root@localhost ~]# cd /usr/src/mfs-1.6.27/
+[root@localhost mfs-1.6.27]# ./configure --prefix=/usr/local/mfs --with-default-user=mfs --with-default-group=mfs --
+disable-mfsmaster --disable-mfschunkserver --enable-mfsmount
+如果还是有问题的，解决方法：yum -y install fuse-devel
+[root@localhost mfs-1.6.27]# make && make install
+[root@localhost ~]# modprobe fuse
+[root@localhost ~]# mkdir /xixi
+[root@localhost ~]# /usr/local/mfs/bin/mfsmount /xixi -H 192.168.1.10
+[root@localhost ~]# mount
+[root@localhost ~]# df -hT
+[root@localhost ~]# umount /xixi //直接卸载就可以了
+[root@localhost ~]# vim /etc/profile
+添加：
+export PATH=/usr/locla/mfs/bin:$PATH
+[root@localhost ~]# source /etc/profile
+或者
+[root@localhost ~]# ln -s /usr/local/mfs/bin/* /usr/local/bin/
+验证：
+[root@localhost ~]# mfsgetgoal -r /xixi
+[root@localhost ~]# mfssetgoal -r 3 /xixi
+注意：生产环境Chunk Server节点数应至少大于2，文件的副本数应小于小于等于Chunk Server服务器数
+[root@localhost ~]# touch /data/mfs/hehe
+[root@localhost ~]# mfsgetgoal /data/mfs/hehe
+MFS监控：
+1）Master中：
+[root@localhost ~]# /usr/local/mfs/sbin/mfscgiserv restart
+2）Client中：
+[root@localhost ~]# firefox http://192.168.1.10:9425 &
+MFS的维护和灾难恢复
+1）MFS集群的启动顺序
+1启动mfsmaster进程
+2启动所有mfschunkserver进程
+3启动mfsmetalogger进程
+4在所有客户端挂载MFS文件系统
+2）MFS集群的停止顺序
+1再所有客户端卸载MFS文件系统
+2用mfschunkserver -s 命令停止mfschunkserver进程
+3用mfsmetalogger -s 命令停止mfsmetalogger进程
+4用mfsmaster -s 命令停止 mfsmaster进程
+3）MFS灾难恢复
+1元数据主文件metadata.mfs ，运行时命名为metadata.mfs.back
+2元数据改变日志changelog*.mfs
+master故障时，可以从metalogger 中回复master：
+1安装一台mfsmaster，利用同样的配置来配置mfsmaster。
+2将metalogger上/usr/local/mfs/var/mfs 目录下的文件复制到mfsmaster相应的目录中。
+3利用mfsmetarestore命令合并数据changelogs
+/usr/local/mfs/sbin/mfsmetarestore -m metadata_m1.mfs.back -o metadata.mfschangelog_m1.*.mfs
+注意：恢复后的master需要重新挂载客户端。
+1. 准备条件
+2. 现在安装包 mfs-1.6.15.tar.gz
+3. #groupadd mfs
+4. #useradd -g mfs mfs
+5. #cd /root
+6. #tar -zxvf mfs-1.6.15.tar.gz
+7. #cd mfs-1.6.15
+8. #./configure --prefix=/usr --sysconfdir=/etc --localstatedir=/var/lib --with-default-user=mfs --with-defaultgroup=
+mfs --disable-mfsmaster
+9. #make
+10. #make install
+11. #准备chunk server 服务所需的配置文件:
+12. #cd /etc/
+13. #cp mfschunkserver.cfg.dist mfschunkserver.cfg
+14. #cp mfshdd.cfg.dist mfshdd.cfg
+15. #在mfshdd.cfg 加入下面的文本行你需要挂在的文件目录
+16. /data/slot0
+17. /data/slot1
+18. /data/slot2
+19. /data/slot3
+20. /data/slot4
+21. [root@cdn etc]# chown -R mfs:mfs /data/slot0
+22. [root@cdn etc]# chown -R mfs:mfs /data/slot1
+23. [root@cdn etc]# chown -R mfs:mfs /data/slot2
+24. [root@cdn etc]# chown -R mfs:mfs /data/slot3
+25. [root@cdn etc]# chown -R mfs:mfs /data/slot4
+26. echo '10.200.93.71 mfsmaster' >> /etc/hosts
+27. #请到chunksever 服务
+28. #/usr/sbin/mfschunkserver start
